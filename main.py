@@ -32,10 +32,6 @@ def draw_hand(frame, landmarks):
         cv2.line(frame, points[start], points[end], (255, 0, 0), 2)
 
 
-def is_finger_up(points, tip, pip):
-    return points[tip][1] < points[pip][1]
-
-
 base_options = BaseOptions(model_asset_path="hand_landmarker.task")
 
 options = vision.HandLandmarkerOptions(
@@ -63,7 +59,8 @@ while True:
     result = detector.detect(mp_image)
 
     if result.hand_landmarks:
-        for hand in result.hand_landmarks:
+        for i, hand in enumerate(result.hand_landmarks):
+            handedness = result.handedness[i][0].category_name
             draw_hand(frame, hand)
 
             h, w, _ = frame.shape
@@ -75,16 +72,36 @@ while True:
                 points.append((x,y))
 
             ## CHECK IF ITS A THUMBS UP GESTURE
-            
+
             ring_above_pinky = points[13][1] < points[17][1] and points[14][1] < points[18][1] and points[15][1] < points[19][1] and points[16][1] < points[20][1]
             middle_above_ring = points[9][1] < points[13][1] and points[10][1] < points[14][1] and points[11][1] < points[15][1] and points[12][1] < points[16][1]
             index_above_middle = points[5][1] < points[9][1] and points[6][1] < points[10][1] and points[7][1] < points[11][1] and points[8][1] < points[12][1]
             thumb_above_index = points[4][1] < points[6][1]
 
-            thumb_extended = points[4][1] < points[3][1] and points[3][1] < points[2][1] and points[2][1] < points[1][1]
+            all_above_eachother = ring_above_pinky and middle_above_ring and index_above_middle and thumb_above_index
 
-            if ring_above_pinky and middle_above_ring and index_above_middle and thumb_above_index and thumb_extended:
-                print(f"{counter}. THUMBS UP")
+            thumb_extended = points[4][1] < points[3][1] and points[3][1] < points[2][1] and points[2][1] < points[1][1]
+            thumb_upright = points[4][0] < points[5][0]
+
+            if handedness == "Right":
+                pinky_tucked = points[20][0] < points[18][0]
+                ring_tucked = points[16][0] < points[14][0]
+                middle_tucked = points[12][0] < points[10][0]
+                index_tucked = points[8][0] < points[6][0]
+
+                thumb_upright = points[4][0] < points[5][0]
+            else:
+                pinky_tucked = points[20][0] > points[18][0]
+                ring_tucked = points[16][0] > points[14][0]
+                middle_tucked = points[12][0] > points[10][0]
+                index_tucked = points[8][0] > points[6][0]
+
+                thumb_upright = points[4][0] > points[5][0]
+
+            all_tucked = pinky_tucked and ring_tucked and middle_tucked and index_tucked
+
+            if all_tucked and all_above_eachother and thumb_extended and thumb_upright:
+                print(f"{counter}. {handedness} THUMBS UP")
                 counter+=1
 
     cv2.imshow("ESC to exit", frame)
