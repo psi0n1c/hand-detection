@@ -3,112 +3,165 @@ import mediapipe as mp
 from mediapipe.tasks.python import vision
 from mediapipe.tasks.python import BaseOptions
 
+# ---------------- HAND SKELETON NODES ---------------- #
+
 HAND_CONNECTIONS = [
-    (0, 1), (1, 2), (2, 3), (3, 4),       # thumb
-    (0, 5), (5, 6), (6, 7), (7, 8),       # index
-    (5, 9), (9, 10), (10, 11), (11, 12),  # middle
-    (9, 13), (13, 14), (14, 15), (15, 16),# ring
-    (13, 17), (17, 18), (18, 19), (19, 20),# pinky
+    (0, 1), (1, 2), (2, 3), (3, 4),
+    (0, 5), (5, 6), (6, 7), (7, 8),
+    (5, 9), (9, 10), (10, 11), (11, 12),
+    (9, 13), (13, 14), (14, 15), (15, 16),
+    (13, 17), (17, 18), (18, 19), (19, 20),
     (0, 17)
 ]
 
+# ---------------- draw hand skeletons ---------------- #
+
 def draw_hand(frame, landmarks):
     h, w, _ = frame.shape
+    points = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
 
-    points = []
-
-    # convert normalized coords into pixels
-    for lm in landmarks:
-        x = int(lm.x * w)
-        y = int(lm.y * h)
-        points.append((x, y))
-
-    # draw the nodes
+    # draw nodes
     for x, y in points:
         cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)
 
-    # draw the lines between the nodes
+    # draw lines connecting nodes
     for start, end in HAND_CONNECTIONS:
         cv2.line(frame, points[start], points[end], (255, 0, 0), 2)
 
+# ---------------- GESTURE: THUMBS UP ---------------- #
+
+def is_thumbs_up(points, handedness):
+    ring_above_pinky = (
+        points[13][1] < points[17][1] and
+        points[14][1] < points[18][1] and
+        points[15][1] < points[19][1] and
+        points[16][1] < points[20][1]
+    )
+
+    middle_above_ring = (
+        points[9][1] < points[13][1] and
+        points[10][1] < points[14][1] and
+        points[11][1] < points[15][1] and
+        points[12][1] < points[16][1]
+    )
+
+    index_above_middle = (
+        points[5][1] < points[9][1] and
+        points[6][1] < points[10][1] and
+        points[7][1] < points[11][1] and
+        points[8][1] < points[12][1]
+    )
+
+    thumb_above_index = points[4][1] < points[6][1]
+
+    all_above_eachother = (
+        ring_above_pinky and
+        middle_above_ring and
+        index_above_middle and
+        thumb_above_index
+    )
+
+    thumb_extended = (
+        points[4][1] < points[3][1] <
+        points[2][1] < points[1][1]
+    )
+
+    if handedness == "Right":
+        pinky_tucked = points[20][0] < points[18][0]
+        ring_tucked = points[16][0] < points[14][0]
+        middle_tucked = points[12][0] < points[10][0]
+        index_tucked = points[8][0] < points[6][0]
+        thumb_upright = points[4][0] < points[5][0]
+    else:
+        pinky_tucked = points[20][0] > points[18][0]
+        ring_tucked = points[16][0] > points[14][0]
+        middle_tucked = points[12][0] > points[10][0]
+        index_tucked = points[8][0] > points[6][0]
+        thumb_upright = points[4][0] > points[5][0]
+
+    all_tucked = (
+        pinky_tucked and
+        ring_tucked and
+        middle_tucked and
+        index_tucked
+    )
+
+    return all_tucked and all_above_eachother and thumb_extended and thumb_upright
+
+# ---------------- show image if gesture detected ---------------- #
+
+def show_overlay(show, image):
+    if show:
+        cv2.imshow("Thumbs Up", image)
+    else:
+        try:
+            cv2.destroyWindow("Thumbs Up")
+        except:
+            pass
+
+# ---------------- camera detection setup ---------------- #
 
 base_options = BaseOptions(model_asset_path="hand_landmarker.task")
 
 options = vision.HandLandmarkerOptions(
-    base_options = base_options,
-    num_hands = 2,
-    min_hand_detection_confidence = 0.5
+    base_options=base_options,
+    num_hands=2,
+    min_hand_detection_confidence=0.5
 )
 
 detector = vision.HandLandmarker.create_from_options(options)
-
 cap = cv2.VideoCapture(0)
 
-counter = 0
+thumbsUp_image = cv2.imread("assets/thumbs_up.png")
+
+# ----------- anti-flickering variables ----------- #
+
+gestureFrames = 0
+showImage = False
+
+# ---------------- MAIN DETECTION LOOP ---------------- #
 
 while True:
     ret, frame = cap.read()
-    
     if not ret:
         break
 
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
     result = detector.detect(mp_image)
 
+    thumbs_up_detected = False
+
     if result.hand_landmarks:
         for i, hand in enumerate(result.hand_landmarks):
             handedness = result.handedness[i][0].category_name
+
             draw_hand(frame, hand)
 
             h, w, _ = frame.shape
+            points = [(int(lm.x * w), int(lm.y * h)) for lm in hand]
 
-            points = []
-            for lm in hand:
-                x = int(lm.x * w)
-                y = int(lm.y * h)
-                points.append((x,y))
+            if is_thumbs_up(points, handedness):
+                thumbs_up_detected = True
 
-            ## CHECK IF ITS A THUMBS UP GESTURE
+    # -------- no flickering -------- #
 
-            ring_above_pinky = points[13][1] < points[17][1] and points[14][1] < points[18][1] and points[15][1] < points[19][1] and points[16][1] < points[20][1]
-            middle_above_ring = points[9][1] < points[13][1] and points[10][1] < points[14][1] and points[11][1] < points[15][1] and points[12][1] < points[16][1]
-            index_above_middle = points[5][1] < points[9][1] and points[6][1] < points[10][1] and points[7][1] < points[11][1] and points[8][1] < points[12][1]
-            thumb_above_index = points[4][1] < points[6][1]
+    if thumbs_up_detected:
+        gestureFrames += 1
+    else:
+        gestureFrames -= 1
 
-            all_above_eachother = ring_above_pinky and middle_above_ring and index_above_middle and thumb_above_index
+    gestureFrames = max(0, min(gestureFrames, 10))
+    showImage = gestureFrames > 5
 
-            thumb_extended = points[4][1] < points[3][1] and points[3][1] < points[2][1] and points[2][1] < points[1][1]
-            thumb_upright = points[4][0] < points[5][0]
 
-            if handedness == "Right":
-                pinky_tucked = points[20][0] < points[18][0]
-                ring_tucked = points[16][0] < points[14][0]
-                middle_tucked = points[12][0] < points[10][0]
-                index_tucked = points[8][0] < points[6][0]
-
-                thumb_upright = points[4][0] < points[5][0]
-            else:
-                pinky_tucked = points[20][0] > points[18][0]
-                ring_tucked = points[16][0] > points[14][0]
-                middle_tucked = points[12][0] > points[10][0]
-                index_tucked = points[8][0] > points[6][0]
-
-                thumb_upright = points[4][0] > points[5][0]
-
-            all_tucked = pinky_tucked and ring_tucked and middle_tucked and index_tucked
-
-            if all_tucked and all_above_eachother and thumb_extended and thumb_upright:
-                print(f"{counter}. {handedness} THUMBS UP")
-                counter+=1
+    show_overlay(showImage, thumbsUp_image)
 
     cv2.imshow("ESC to exit", frame)
 
     if cv2.waitKey(1) & 0xFF == 27:
         break
-
 
 cap.release()
 cv2.destroyAllWindows()
