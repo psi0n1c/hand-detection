@@ -1,161 +1,16 @@
 import cv2
 import mediapipe as mp
-from mediapipe.tasks.python import vision
-from mediapipe.tasks.python import BaseOptions
-import math
 
-# ---------------- HAND SKELETON NODES ---------------- #
-
-HAND_CONNECTIONS = [
-    (0, 1), (1, 2), (2, 3), (3, 4), # thumb
-    (0, 5), (5, 6), (6, 7), (7, 8), # index
-    (5, 9), (9, 10), (10, 11), (11, 12), # middle
-    (9, 13), (13, 14), (14, 15), (15, 16), # ring
-    (13, 17), (17, 18), (18, 19), (19, 20), # pinky
-    (0, 17)
-]
-
-# ---------------- draw hand skeletons ---------------- #
-
-def draw_hand(frame, landmarks):
-    h, w, _ = frame.shape
-    points = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
-
-    # draw nodes
-    for x, y in points:
-        cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)
-
-    # draw lines connecting nodes
-    for start, end in HAND_CONNECTIONS:
-        cv2.line(frame, points[start], points[end], (255, 0, 0), 2)
-
-# ------- FINGERS ARE TUCKED WHEN HAND IS SIDEWAYS -------------- #
-
-def are_tucked_sideways(points, handedness):
-    if handedness == "Right":
-        pinky_tucked = points[20][0] < points[18][0]
-        ring_tucked = points[16][0] < points[14][0]
-        middle_tucked = points[12][0] < points[10][0]
-        index_tucked = points[8][0] < points[6][0]
-
-    else:
-        pinky_tucked = points[20][0] > points[18][0]
-        ring_tucked = points[16][0] > points[14][0]
-        middle_tucked = points[12][0] > points[10][0]
-        index_tucked = points[8][0] > points[6][0]
-
-    all_tucked = (
-        pinky_tucked and
-        ring_tucked and
-        middle_tucked and
-        index_tucked
-    )
-
-    return all_tucked
-
-# ------- HAND IS NEAR MOUTH -------------- #
-
-def hand_near_mouth(hand_center, mouth_center, threshold=80):
-    if mouth_center == None:
-        return False
-    
-    dx = hand_center[0] - mouth_center[0]
-    dy = hand_center[1] - mouth_center[1]
-
-    distance = math.sqrt(dx*dx + dy*dy)
-
-    return distance < threshold
-
-# ---------------- GESTURE: THUMBS UP ---------------- #
-
-def is_thumbs_up(points, handedness):
-    ring_above_pinky = (
-        points[13][1] < points[17][1] and
-        points[14][1] < points[18][1] and
-        points[15][1] < points[19][1] and
-        points[16][1] < points[20][1]
-    )
-
-    middle_above_ring = (
-        points[9][1] < points[13][1] and
-        points[10][1] < points[14][1] and
-        points[11][1] < points[15][1] and
-        points[12][1] < points[16][1]
-    )
-
-    index_above_middle = (
-        points[5][1] < points[9][1] and
-        points[6][1] < points[10][1] and
-        points[7][1] < points[11][1] and
-        points[8][1] < points[12][1]
-    )
-
-    thumb_above_index = points[4][1] < points[6][1]
-
-    all_above_eachother = (
-        ring_above_pinky and
-        middle_above_ring and
-        index_above_middle and
-        thumb_above_index
-    )
-
-    thumb_extended = (
-        points[4][1] < points[3][1] <
-        points[2][1] < points[1][1]
-    )
-
-    if handedness == "Right":
-        thumb_upright = points[4][0] < points[5][0]
-    else:
-        thumb_upright = points[4][0] > points[5][0]
-    
-    return are_tucked_sideways(points, handedness) and all_above_eachother and thumb_extended and thumb_upright
-
-# ---------------- GESTURE: POINT UP LIKE A NERD ---------------- #
-
-def is_pointing_up(points):
-    index_up = points[8][1] < points[6][1]
-
-    middle_down = points[12][1] > points[10][1]
-    ring_down   = points[16][1] > points[14][1]
-    pinky_down  = points[20][1] > points[18][1]
-
-    return index_up and middle_down and ring_down and pinky_down
-
-# ---------------- GESTURE: FIST ANGRY ---------------- #
-
-def is_fist(points, handedness):
-    return are_tucked_sideways(points, handedness)
-
-# ---------------- show image if gesture detected ---------------- #
-
-def show_overlay(show, image):
-    if show:
-        cv2.imshow("Linganguli", image)
-    else:
-        try:
-            cv2.destroyWindow("Linganguli")
-        except:
-            pass
-
-# ---------------- camera detection setup ---------------- #
-
-base_hand_options = BaseOptions(model_asset_path="hand_landmarker.task")
-base_face_options = BaseOptions(model_asset_path="face_landmarker.task")
-
-face_options = vision.FaceLandmarkerOptions(
-    base_options=base_face_options,
-    num_faces=1
+from camera import create_detectors
+from drawing import draw_hand, show_overlay
+from gestures import (
+    is_thumbs_up,
+    is_pointing_up,
+    is_fist,
+    hand_near_mouth
 )
 
-hand_options = vision.HandLandmarkerOptions(
-    base_options=base_hand_options,
-    num_hands=2,
-    min_hand_detection_confidence=0.5
-)
-
-hand_detector = vision.HandLandmarker.create_from_options(hand_options)
-face_detector = vision.FaceLandmarker.create_from_options(face_options)
+hand_detector, face_detector = create_detectors()
 
 cap = cv2.VideoCapture(0)
 
