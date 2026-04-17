@@ -28,6 +28,30 @@ def draw_hand(frame, landmarks):
     for start, end in HAND_CONNECTIONS:
         cv2.line(frame, points[start], points[end], (255, 0, 0), 2)
 
+# ------- FINGERS ARE TUCKED WHEN HAND IS SIDEWAYS
+
+def are_tucked_sideways(points, handedness):
+    if handedness == "Right":
+        pinky_tucked = points[20][0] < points[18][0]
+        ring_tucked = points[16][0] < points[14][0]
+        middle_tucked = points[12][0] < points[10][0]
+        index_tucked = points[8][0] < points[6][0]
+
+    else:
+        pinky_tucked = points[20][0] > points[18][0]
+        ring_tucked = points[16][0] > points[14][0]
+        middle_tucked = points[12][0] > points[10][0]
+        index_tucked = points[8][0] > points[6][0]
+
+    all_tucked = (
+        pinky_tucked and
+        ring_tucked and
+        middle_tucked and
+        index_tucked
+    )
+
+    return all_tucked
+
 # ---------------- GESTURE: THUMBS UP ---------------- #
 
 def is_thumbs_up(points, handedness):
@@ -67,26 +91,11 @@ def is_thumbs_up(points, handedness):
     )
 
     if handedness == "Right":
-        pinky_tucked = points[20][0] < points[18][0]
-        ring_tucked = points[16][0] < points[14][0]
-        middle_tucked = points[12][0] < points[10][0]
-        index_tucked = points[8][0] < points[6][0]
         thumb_upright = points[4][0] < points[5][0]
     else:
-        pinky_tucked = points[20][0] > points[18][0]
-        ring_tucked = points[16][0] > points[14][0]
-        middle_tucked = points[12][0] > points[10][0]
-        index_tucked = points[8][0] > points[6][0]
         thumb_upright = points[4][0] > points[5][0]
-
-    all_tucked = (
-        pinky_tucked and
-        ring_tucked and
-        middle_tucked and
-        index_tucked
-    )
-
-    return all_tucked and all_above_eachother and thumb_extended and thumb_upright
+    
+    return are_tucked_sideways(points, handedness) and all_above_eachother and thumb_extended and thumb_upright
 
 # ---------------- GESTURE: POINT UP LIKE A NERD ---------------- #
 
@@ -98,6 +107,11 @@ def is_pointing_up(points):
     pinky_down  = points[20][1] > points[18][1]
 
     return index_up and middle_down and ring_down and pinky_down
+
+# ---------------- GESTURE: FIST ANGRY ---------------- #
+
+def is_fist(points, handedness):
+    return are_tucked_sideways(points, handedness)
 
 # ---------------- show image if gesture detected ---------------- #
 
@@ -125,11 +139,13 @@ cap = cv2.VideoCapture(0)
 
 thumbsUp_image = cv2.imread("assets/thumbs_up.png")
 pointingUp_image = cv2.imread("assets/point_up.png")
+fist_image = cv2.imread("assets/fist.jpg")
 
 # ----------- anti-flickering variables ----------- #
 
 thumbs_frames = 0
 pointing_frames = 0
+fist_frames = 0
 showImage = False
 
 # ---------------- MAIN DETECTION LOOP ---------------- #
@@ -146,6 +162,7 @@ while True:
 
     thumbs_up_detected = False
     pointing_up_detected = False
+    fist_detected = False
 
     if result.hand_landmarks:
         for i, hand in enumerate(result.hand_landmarks):
@@ -162,7 +179,14 @@ while True:
             if is_pointing_up(points):
                 pointing_up_detected = True
 
-    # -------- no flickering -------- #
+            if is_fist(points, handedness):
+                fist_detected = True
+
+    # --------------------------------- #
+    # -------- no flickering ---------- #
+    # --------------------------------- #
+
+    # ------- THUMBS UP -------- #
 
     if thumbs_up_detected:
         thumbs_frames += 1
@@ -172,6 +196,8 @@ while True:
     thumbs_frames = max(0, min(thumbs_frames, 10))
     showThumbs = thumbs_frames > 3
 
+    # ------- POINT UP --------- #
+
     if pointing_up_detected:
         pointing_frames += 1
     else:
@@ -180,10 +206,22 @@ while True:
     pointing_frames = max(0, min(pointing_frames, 10))
     showPointing = pointing_frames > 3
 
+    # ------- FIST --------- #
+
+    if fist_detected:
+        fist_frames += 1
+    else:
+        fist_frames -= 1
+
+    fist_frames = max(0, min(fist_frames, 10))
+    showFist = fist_frames > 3
+
     if showPointing:
         show_overlay(True, pointingUp_image)
     elif showThumbs:
         show_overlay(True, thumbsUp_image)
+    elif showFist:
+        show_overlay(True, fist_image)
     else:
         show_overlay(False, None)
 
