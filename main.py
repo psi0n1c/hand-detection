@@ -2,6 +2,7 @@ import cv2
 import mediapipe as mp
 from mediapipe.tasks.python import vision
 from mediapipe.tasks.python import BaseOptions
+import math
 
 # ---------------- HAND SKELETON NODES ---------------- #
 
@@ -28,7 +29,7 @@ def draw_hand(frame, landmarks):
     for start, end in HAND_CONNECTIONS:
         cv2.line(frame, points[start], points[end], (255, 0, 0), 2)
 
-# ------- FINGERS ARE TUCKED WHEN HAND IS SIDEWAYS
+# ------- FINGERS ARE TUCKED WHEN HAND IS SIDEWAYS -------------- #
 
 def are_tucked_sideways(points, handedness):
     if handedness == "Right":
@@ -51,6 +52,19 @@ def are_tucked_sideways(points, handedness):
     )
 
     return all_tucked
+
+# ------- HAND IS NEAR MOUTH -------------- #
+
+def hand_near_mouth(hand_center, mouth_center, threshold=80):
+    if mouth_center == None:
+        return False
+    
+    dx = hand_center[0] - mouth_center[0]
+    dy = hand_center[1] - mouth_center[1]
+
+    distance = math.sqrt(dx*dx + dy*dy)
+
+    return distance < threshold
 
 # ---------------- GESTURE: THUMBS UP ---------------- #
 
@@ -126,26 +140,36 @@ def show_overlay(show, image):
 
 # ---------------- camera detection setup ---------------- #
 
-base_options = BaseOptions(model_asset_path="hand_landmarker.task")
+base_hand_options = BaseOptions(model_asset_path="hand_landmarker.task")
+base_face_options = BaseOptions(model_asset_path="face_landmarker.task")
 
-options = vision.HandLandmarkerOptions(
-    base_options=base_options,
+face_options = vision.FaceLandmarkerOptions(
+    base_options=base_face_options,
+    num_faces=1
+)
+
+hand_options = vision.HandLandmarkerOptions(
+    base_options=base_hand_options,
     num_hands=2,
     min_hand_detection_confidence=0.5
 )
 
-detector = vision.HandLandmarker.create_from_options(options)
+hand_detector = vision.HandLandmarker.create_from_options(hand_options)
+face_detector = vision.FaceLandmarker.create_from_options(face_options)
+
 cap = cv2.VideoCapture(0)
 
 thumbsUp_image = cv2.imread("assets/thumbs_up.png")
 pointingUp_image = cv2.imread("assets/point_up.png")
 fist_image = cv2.imread("assets/fist.jpg")
+hand_near_mouth_image = cv2.imread("assets/hand_near_mouth.png")
 
 # ----------- anti-flickering variables ----------- #
 
 thumbs_frames = 0
 pointing_frames = 0
 fist_frames = 0
+hand_near_mouth_frames = 0
 showImage = False
 
 # ---------------- MAIN DETECTION LOOP ---------------- #
@@ -158,20 +182,38 @@ while True:
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
-    result = detector.detect(mp_image)
+    hand_result = hand_detector.detect(mp_image)
+    face_result = face_detector.detect(mp_image)
 
     thumbs_up_detected = False
     pointing_up_detected = False
     fist_detected = False
+    hand_near_mouth_detected = False
 
-    if result.hand_landmarks:
-        for i, hand in enumerate(result.hand_landmarks):
-            handedness = result.handedness[i][0].category_name
+    mouth_center = None
+
+    if face_result.face_landmarks:
+        face = face_result.face_landmarks[0]
+
+        h, w, _ = frame.shape
+
+        x = int((face[13].x + face[14].x) / 2 * w)
+        y = int((face[13].y + face[14].y) / 2 * h)
+
+        mouth_center = (x, y)
+
+        cv2.circle(frame, mouth_center, 8, (0, 0, 225), -1)
+
+    if hand_result.hand_landmarks:
+        for i, hand in enumerate(hand_result.hand_landmarks):
+            handedness = hand_result.handedness[i][0].category_name
 
             draw_hand(frame, hand)
 
             h, w, _ = frame.shape
             points = [(int(lm.x * w), int(lm.y * h)) for lm in hand]
+
+            hand_center = points[9]
 
             if is_thumbs_up(points, handedness):
                 thumbs_up_detected = True
@@ -181,6 +223,11 @@ while True:
 
             if is_fist(points, handedness):
                 fist_detected = True
+
+            if mouth_center and hand_near_mouth(hand_center, mouth_center) and is_fist(points, handedness):
+                hand_near_mouth_detected = True
+
+
 
     # --------------------------------- #
     # -------- no flickering ---------- #
@@ -216,10 +263,23 @@ while True:
     fist_frames = max(0, min(fist_frames, 10))
     showFist = fist_frames > 3
 
+    # ------- HAND OVER MOUTH --------- #
+
+    if hand_near_mouth_detected:
+        hand_near_mouth_frames += 1
+    else:
+        hand_near_mouth_frames -= 1
+
+    hand_near_mouth_frames = max(0, min(hand_near_mouth_frames, 10))
+    showHandNearMouth = hand_near_mouth_frames > 3
+        
+
     if showPointing:
         show_overlay(True, pointingUp_image)
     elif showThumbs:
         show_overlay(True, thumbsUp_image)
+    elif showHandNearMouth:
+        show_overlay(True, hand_near_mouth_image)
     elif showFist:
         show_overlay(True, fist_image)
     else:
