@@ -15,13 +15,22 @@ def draw_hand(frame, landmarks):
     for start, end in HAND_CONNECTIONS:
         cv2.line(frame, points[start], points[end], (255, 0, 0), 2)
 
-# ---------------- show image if gesture detected ---------------- #
+# ---------------- show image/video if gesture detected ---------------- #
 
-def show_overlay(show, image):
+def show_overlay_image(show, image):
     if show:
         cv2.imshow("Linganguli", image)
     else:
         try:
             cv2.destroyWindow("Linganguli")
+        except:
+            pass
+
+def show_overlay_video(show, video):
+    if show:
+        cv2.imshow("SCUBAAAA", video)
+    else:
+        try:
+            cv2.destroyWindow("SCUBAAAA")
         except:
             pass

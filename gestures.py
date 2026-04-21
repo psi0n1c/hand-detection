@@ -97,3 +97,27 @@ def is_pointing_up(points):
 
 def is_fist(points, handedness):
     return are_tucked_sideways(points, handedness)
+
+# ---------------- GESTURE: WAVING RIGHT HAND ---------------- #
+
+def is_waving(history, min_changes=3, min_distance=5):
+    if len(history) < 5:
+        return False
+    
+    direction_changes = 0
+    prev_direction = 0
+
+    for i in range(1, len(history)):
+        dx = history[i][0] - history[i-1][0]
+
+        if abs(dx) < min_distance:
+            continue
+
+        direction = 1 if dx > 0 else -1
+
+        if prev_direction != 0 and direction != prev_direction:
+            direction_changes += 1
+
+        prev_direction = direction
+
+    return direction_changes >= min_changes
