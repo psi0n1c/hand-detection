@@ -165,7 +165,12 @@ while True:
     showScuba = scuba_frames > 3
 
     if showScuba:
-        retS, frameScuba = scuba_video.read()
+        for _ in range(3): #3x speed for video cause of choppyness and slowness
+            retS, frameScuba = scuba_video.read()
+            if not retS:
+                scuba_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                retS, frameScuba = scuba_video.read()
+                
         show_overlay_image(False, "Linganguli")
         show_overlay_video(True, frameScuba)
 
