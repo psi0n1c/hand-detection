@@ -28,7 +28,7 @@ A real-time computer vision project that detects hand gestures and facial proxim
    - Face landmarks (for mouth position)
 3. Custom rule-based logic detects gestures based on landmark positions.
 4. A frame-buffer system stabilizes gesture detection.
-5. Matching gestures trigger overlay images displayed via OpenCV.
+5. Matching gestures trigger overlay images/videos displayed via OpenCV.
 
 ---
 
@@ -45,6 +45,9 @@ A real-time computer vision project that detects hand gestures and facial proxim
 * 🫢 Hand Near Mouth
     - Distance between mouth center and hand center is below a threshold
     - All fingers tucked
+* 🫢👋 Right Hand Wave, Left Near Mouth (SCUBA meme)
+    - Left hand is near the mouth like the Hand Near Mouth gesture
+    - Right hand is moving left-right repeatedly a certain number of times within a few frames
 
 ---
 
