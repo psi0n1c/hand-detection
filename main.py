@@ -37,7 +37,6 @@ showImage = False
 
 while True:
     ret, frame = cap.read()
-    retS, frameScuba = scuba_video.read()
     if not ret:
         break
 
@@ -103,7 +102,7 @@ while True:
                 if is_near_mouth and is_fist_gesture:
                     left_hand_near_mouth = True
 
-            if handedness == "Left" and is_near_mouth and is_fist_gesture:
+            if handedness == "Right" and is_near_mouth and is_fist_gesture:
                 hand_near_mouth_detected = True
 
 
@@ -166,6 +165,8 @@ while True:
     showScuba = scuba_frames > 3
 
     if showScuba:
+        retS, frameScuba = scuba_video.read()
+        show_overlay_image(False, "Linganguli")
         show_overlay_video(True, frameScuba)
 
         showPointing = False
