@@ -180,12 +180,16 @@ while True:
         fist_frames = 0
     elif showPointing:
         show_overlay_image(True, pointingUp_image)
+        show_overlay_video(False, "SCUBAAAA")
     elif showThumbs:
         show_overlay_image(True, thumbsUp_image)
+        show_overlay_video(False, "SCUBAAAA")
     elif showHandNearMouth:
         show_overlay_image(True, hand_near_mouth_image)
+        show_overlay_video(False, "SCUBAAAA")
     elif showFist:
         show_overlay_image(True, fist_image)
+        show_overlay_video(False, "SCUBAAAA")
     else:
         show_overlay_image(False, None)
 

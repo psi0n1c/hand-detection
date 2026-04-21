@@ -13,7 +13,7 @@ def create_detectors():
     hand_options = vision.HandLandmarkerOptions(
         base_options=base_hand_options,
         num_hands=2,
-        min_hand_detection_confidence=0.5
+        min_hand_detection_confidence=0.3
     )
 
     hand_detector = vision.HandLandmarker.create_from_options(hand_options)
