@@ -13,6 +13,7 @@ A real-time computer vision project that detects hand gestures and facial proxim
     - Pointing up ☝️
     - Fist ✊
     - Hand near mouth as a fist 🫢
+    - TikTok meme "Scuba" video
 -  Gesture smoothing (prevents flickering using frame buffering)
 -  Visual overlays triggered by detected gestures
 -  Live webcam processing
