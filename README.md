@@ -34,18 +34,18 @@ A real-time computer vision project that detects hand gestures and facial proxim
 
 ## Gesture Logic Overview
 
-* 👍 Thumbs Up
+*  Thumbs Up
     - All fingers folded except thumb
     - Thumb extended upward
-* ☝️ Pointing Up
+*  Pointing Up
     - Index finger extended
     - Middle, ring and pinky fingers folded
-* ✊ Fist
+*  Fist
     - All fingers tucked
-* 🫢 Hand Near Mouth
+*  Hand Near Mouth
     - Distance between mouth center and hand center is below a threshold
     - All fingers tucked
-* 🫢👋 Right Hand Wave, Left Near Mouth (SCUBA meme)
+*  Right Hand Wave, Left Near Mouth (SCUBA meme)
     - Left hand is near the mouth like the Hand Near Mouth gesture
     - Right hand is moving left-right repeatedly a certain number of times within a few frames
 
